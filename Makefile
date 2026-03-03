@@ -1,9 +1,12 @@
 APP_NAME := qwikkle-api
 
-.PHONY: run build test
+.PHONY: run dev build test
 
 run:
 	go run ./cmd/api
+
+dev:
+	air
 
 build:
 	go build -o $(APP_NAME) ./cmd/api

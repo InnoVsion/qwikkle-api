@@ -3,32 +3,24 @@ package main
 import (
 	"context"
 	"log"
-	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
 
-	"qwikkle-api/internal/health"
+	"qwikkle-api/internal/config"
+	"qwikkle-api/internal/server"
 )
 
 func main() {
-	addr := getAddr()
+	cfg := config.Load()
 
-	mux := http.NewServeMux()
-	mux.HandleFunc("/healthz", health.Handler)
-
-	server := &http.Server{
-		Addr:         addr,
-		Handler:      mux,
-		ReadTimeout:  10 * time.Second,
-		WriteTimeout: 10 * time.Second,
-		IdleTimeout:  60 * time.Second,
-	}
+	srv := server.New(cfg)
+	httpServer := srv.HTTPServer()
 
 	go func() {
-		log.Printf("qwikkle-api listening on %s", addr)
-		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		log.Printf("qwikkle-api listening on %s", httpServer.Addr)
+		if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Fatalf("server error: %v", err)
 		}
 	}()
@@ -41,17 +33,9 @@ func main() {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	if err := server.Shutdown(ctx); err != nil {
+	if err := httpServer.Shutdown(ctx); err != nil {
 		log.Printf("graceful shutdown failed: %v", err)
 	} else {
 		log.Println("server stopped")
 	}
 }
-
-func getAddr() string {
-	if port := os.Getenv("PORT"); port != "" {
-		return ":" + port
-	}
-	return ":8080"
-}
-
