@@ -1,0 +1,12 @@
+# Local environment files
+.env
+
+# Build artifacts
+qwikkle-api
+*.log
+
+# IDE/editor
+.DS_Store
+.vscode/
+.idea/
+
