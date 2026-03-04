@@ -5,6 +5,7 @@ import (
 	"errors"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 
 	"qwikkle-api/internal/db"
 )
@@ -38,7 +39,7 @@ func (r *postgresRepo) CreateUser(ctx context.Context, email, passwordHash strin
 	var u User
 	err := r.pool.QueryRow(ctx, q, email, passwordHash).Scan(&u.ID, &u.Email, &u.PasswordHash)
 	if err != nil {
-		var pgErr *pgx.PgError
+		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) && pgErr.ConstraintName == "users_email_key" {
 			return nil, ErrEmailTaken
 		}

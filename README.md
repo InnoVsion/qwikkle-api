@@ -24,6 +24,7 @@ At minimum you can leave the defaults and only change secrets later.
 ### Running locally
 
 ```bash
+go mod tidy
 make run
 ```
 

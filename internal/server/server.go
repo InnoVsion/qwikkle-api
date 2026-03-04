@@ -3,11 +3,13 @@ package server
 import (
 	"fmt"
 	"net/http"
+
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
-	"github.com/swaggo/files"
+	swaggerFiles "github.com/swaggo/files"
 	"github.com/swaggo/gin-swagger"
 	"go.uber.org/zap"
+
 	"qwikkle-api/internal/auth"
 	"qwikkle-api/internal/config"
 	"qwikkle-api/internal/db"
@@ -47,7 +49,7 @@ func New(cfg config.Config, pool *db.Pool, log *zap.Logger) *Server {
 		c.JSON(http.StatusOK, gin.H{"status": "ok"})
 	})
 
-	r.GET("/swagger/*any", ginSwagger.WrapHandler(files.Handler))
+	r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 
 	// @Summary Sign up
 	// @Description Create a new user account
