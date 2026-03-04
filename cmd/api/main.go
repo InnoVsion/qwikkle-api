@@ -3,19 +3,27 @@ package main
 import (
 	"context"
 	"log"
+	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
 
 	"qwikkle-api/internal/config"
+	"qwikkle-api/internal/db"
+	"qwikkle-api/internal/logger"
 	"qwikkle-api/internal/server"
 )
 
 func main() {
 	cfg := config.Load()
 
-	srv := server.New(cfg)
+	ctx := context.Background()
+	pool := db.New(ctx)
+	logg := logger.New()
+	defer logg.Sync()
+
+	srv := server.New(cfg, pool, logg)
 	httpServer := srv.HTTPServer()
 
 	go func() {

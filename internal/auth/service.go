@@ -1,8 +1,7 @@
 package auth
 
 import (
-	"errors"
-	"sync"
+	"context"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -16,45 +15,27 @@ type User struct {
 }
 
 type Service struct {
-	mu         sync.RWMutex
-	usersByEmail map[string]*User
-	nextID     int64
-	jwtSecret  string
+	repo      Repository
+	jwtSecret string
 }
 
-func NewService(jwtSecret string) *Service {
+func NewService(repo Repository, jwtSecret string) *Service {
 	return &Service{
-		usersByEmail: make(map[string]*User),
-		nextID:     1,
-		jwtSecret:  jwtSecret,
+		repo:      repo,
+		jwtSecret: jwtSecret,
 	}
 }
 
-var (
-	ErrEmailTaken      = errors.New("email already registered")
-	ErrInvalidCredentials = errors.New("invalid email or password")
-)
-
-func (s *Service) Signup(email, password string) (*User, string, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	if _, exists := s.usersByEmail[email]; exists {
-		return nil, "", ErrEmailTaken
-	}
-
+func (s *Service) Signup(ctx context.Context, email, password string) (*User, string, error) {
 	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	if err != nil {
 		return nil, "", err
 	}
 
-	u := &User{
-		ID:           s.nextID,
-		Email:        email,
-		PasswordHash: string(hash),
+	u, err := s.repo.CreateUser(ctx, email, string(hash))
+	if err != nil {
+		return nil, "", err
 	}
-	s.usersByEmail[email] = u
-	s.nextID++
 
 	token, err := s.generateToken(u)
 	if err != nil {
@@ -64,13 +45,13 @@ func (s *Service) Signup(email, password string) (*User, string, error) {
 	return u, token, nil
 }
 
-func (s *Service) Login(email, password string) (*User, string, error) {
-	s.mu.RLock()
-	u, ok := s.usersByEmail[email]
-	s.mu.RUnlock()
-
-	if !ok {
-		return nil, "", ErrInvalidCredentials
+func (s *Service) Login(ctx context.Context, email, password string) (*User, string, error) {
+	u, err := s.repo.GetUserByEmail(ctx, email)
+	if err != nil {
+		if err == ErrUserNotFound {
+			return nil, "", ErrInvalidCredentials
+		}
+		return nil, "", err
 	}
 
 	if err := bcrypt.CompareHashAndPassword([]byte(u.PasswordHash), []byte(password)); err != nil {
