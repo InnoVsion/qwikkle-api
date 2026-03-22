@@ -11,13 +11,14 @@ import (
 	ginSwagger "github.com/swaggo/gin-swagger"
 	"go.uber.org/zap"
 
+	"qwikkle-api/internal/admin"
 	"qwikkle-api/internal/auth"
 	"qwikkle-api/internal/config"
 	"qwikkle-api/internal/server/docs"
 	"qwikkle-api/internal/types"
 )
 
-func NewRouter(cfg config.Config, repo auth.Repository, log *zap.Logger) *gin.Engine {
+func NewRouter(cfg config.Config, repo auth.Repository, adminRepo admin.Repository, log *zap.Logger) *gin.Engine {
 	if cfg.AppEnv == "test" {
 		gin.SetMode(gin.TestMode)
 	} else {
@@ -283,6 +284,10 @@ func NewRouter(cfg config.Config, repo auth.Repository, log *zap.Logger) *gin.En
 			},
 		})
 	})
+
+	admin := r.Group("/admin")
+	admin.Use(requireAdmin(cfg, repo))
+	registerAdminRoutes(admin, adminRepo)
 
 	return r
 }

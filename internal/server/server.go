@@ -11,6 +11,7 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 	"go.uber.org/zap"
 
+	"qwikkle-api/internal/admin"
 	"qwikkle-api/internal/auth"
 	"qwikkle-api/internal/config"
 	"qwikkle-api/internal/db"
@@ -49,7 +50,8 @@ type adminMeResponse struct {
 
 func New(cfg config.Config, pool *db.Pool, log *zap.Logger) *Server {
 	repo := auth.NewPostgresRepository(pool)
-	r := NewRouter(cfg, repo, log)
+	adminRepo := admin.NewPostgresRepository(pool)
+	r := NewRouter(cfg, repo, adminRepo, log)
 
 	addr := fmt.Sprintf(":%s", cfg.Port)
 
