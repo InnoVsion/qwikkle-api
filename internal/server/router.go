@@ -69,6 +69,33 @@ func NewRouter(
 		c.JSON(http.StatusOK, gin.H{"status": "ok"})
 	})
 
+	r.GET("/qk/availability", func(c *gin.Context) {
+		raw := c.Query("qkId")
+		normalizedQKID, err := types.NormalizeQKID(raw)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid qkId"})
+			return
+		}
+
+		_, err = repo.GetUserByQKID(c.Request.Context(), normalizedQKID)
+		if err != nil {
+			if err == auth.ErrUserNotFound {
+				c.JSON(http.StatusOK, gin.H{
+					"qkId":      normalizedQKID,
+					"available": true,
+				})
+				return
+			}
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "could not check qkId"})
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{
+			"qkId":      normalizedQKID,
+			"available": false,
+		})
+	})
+
 	r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 
 	r.POST("/signup", func(c *gin.Context) {

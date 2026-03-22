@@ -724,6 +724,48 @@ func TestAPIEndpoints(t *testing.T) {
 		}
 	})
 
+	t.Run("qkId availability", func(t *testing.T) {
+		rr := doJSON(t, router, http.MethodGet, "/qk/availability?qkId=alice", nil)
+		if rr.Code != http.StatusOK {
+			t.Fatalf("status = %d, body=%s", rr.Code, rr.Body.String())
+		}
+		var res struct {
+			QKID      string `json:"qkId"`
+			Available bool   `json:"available"`
+		}
+		if err := json.Unmarshal(rr.Body.Bytes(), &res); err != nil {
+			t.Fatalf("unmarshal: %v", err)
+		}
+		if res.QKID != "alice.qk" {
+			t.Fatalf("qkId = %q", res.QKID)
+		}
+		if !res.Available {
+			t.Fatalf("expected available")
+		}
+
+		signupRR := doJSON(t, router, http.MethodPost, "/signup", map[string]any{
+			"qkId":     "alice",
+			"password": "password123",
+		})
+		if signupRR.Code != http.StatusCreated {
+			t.Fatalf("status = %d, body=%s", signupRR.Code, signupRR.Body.String())
+		}
+
+		rr2 := doJSON(t, router, http.MethodGet, "/qk/availability?qkId=alice.qk", nil)
+		if rr2.Code != http.StatusOK {
+			t.Fatalf("status = %d, body=%s", rr2.Code, rr2.Body.String())
+		}
+		var res2 struct {
+			Available bool `json:"available"`
+		}
+		if err := json.Unmarshal(rr2.Body.Bytes(), &res2); err != nil {
+			t.Fatalf("unmarshal: %v", err)
+		}
+		if res2.Available {
+			t.Fatalf("expected unavailable")
+		}
+	})
+
 	t.Run("admin auth flow", func(t *testing.T) {
 		adminHash, err := bcrypt.GenerateFromPassword([]byte("adminpass123"), bcrypt.DefaultCost)
 		if err != nil {
