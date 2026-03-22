@@ -454,22 +454,33 @@ func newMemoryUploadsRepo() *memoryUploadsRepo {
 	}
 }
 
-func (r *memoryUploadsRepo) Create(ctx context.Context, storageKey string, fileName string, fileSize int64, mimeType string) (*uploads.Upload, error) {
+func (r *memoryUploadsRepo) Create(ctx context.Context, provider string, storageKey string, downloadURL *string, fileName string, fileSize int64, mimeType string) (*uploads.Upload, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.nextID++
 	id := fmt.Sprintf("up_%d", r.nextID)
 	now := time.Now()
 	u := &uploads.Upload{
-		ID:         id,
-		StorageKey: storageKey,
-		FileName:   fileName,
-		FileSize:   fileSize,
-		MimeType:   mimeType,
-		Status:     uploads.UploadStatusPending,
-		CreatedAt:  now,
+		ID:          id,
+		Provider:    provider,
+		StorageKey:  storageKey,
+		DownloadURL: downloadURL,
+		FileName:    fileName,
+		FileSize:    fileSize,
+		MimeType:    mimeType,
+		Status:      uploads.UploadStatusPending,
+		CreatedAt:   now,
 	}
 	r.uploads[id] = u
+	return u, nil
+}
+
+func (r *memoryUploadsRepo) CreateCompleted(ctx context.Context, provider string, storageKey string, downloadURL *string, fileName string, fileSize int64, mimeType string) (*uploads.Upload, error) {
+	u, err := r.Create(ctx, provider, storageKey, downloadURL, fileName, fileSize, mimeType)
+	if err != nil {
+		return nil, err
+	}
+	_ = r.MarkCompleted(ctx, u.ID)
 	return u, nil
 }
 
@@ -627,6 +638,7 @@ func newTestRouter(t *testing.T) (*memoryAuthRepo, *memoryAdminRepo, http.Handle
 		JWTRefreshSecret:   "test-refresh-secret",
 		CookieDomain:       "",
 		CORSAllowedOrigins: "",
+		StorageProvider:    "s3",
 		S3Bucket:           "test-bucket",
 	}
 

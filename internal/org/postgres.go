@@ -41,6 +41,10 @@ func (r *PostgresRepository) SignupOrganization(ctx context.Context, in SignupOr
 	if err != nil || businessUpload.Status != uploads.UploadStatusCompleted {
 		return nil, ErrInvalidUpload
 	}
+	businessDownloadURL := businessUpload.StorageKey
+	if businessUpload.DownloadURL != nil && *businessUpload.DownloadURL != "" {
+		businessDownloadURL = *businessUpload.DownloadURL
+	}
 
 	for _, reg := range in.RegistrantIDs {
 		if reg.FullLegalName == "" || reg.IDDocumentUploadID == "" {
@@ -111,13 +115,17 @@ func (r *PostgresRepository) SignupOrganization(ctx context.Context, in SignupOr
 			uploaded_at
 		)
 		VALUES ($1, $2, $3::document_type, 'pending'::document_status, $4, $5, $6, $7, $8, NOW())
-	`, orgID, userID, string(types.DocumentTypeRegistrationCertificate), businessUpload.FileName, businessUpload.FileSize, businessUpload.MimeType, businessUpload.StorageKey, businessUpload.StorageKey)
+	`, orgID, userID, string(types.DocumentTypeRegistrationCertificate), businessUpload.FileName, businessUpload.FileSize, businessUpload.MimeType, businessUpload.StorageKey, businessDownloadURL)
 	if err != nil {
 		return nil, err
 	}
 
 	for _, reg := range in.RegistrantIDs {
 		u, _ := r.uploadsRepo.Get(ctx, reg.IDDocumentUploadID)
+		downloadURL := u.StorageKey
+		if u.DownloadURL != nil && *u.DownloadURL != "" {
+			downloadURL = *u.DownloadURL
+		}
 		_, err = tx.Exec(ctx, `
 			INSERT INTO organization_documents (
 				organization_id,
@@ -132,7 +140,7 @@ func (r *PostgresRepository) SignupOrganization(ctx context.Context, in SignupOr
 				uploaded_at
 			)
 			VALUES ($1, $2, $3::document_type, 'pending'::document_status, $4, $5, $6, $7, $8, NOW())
-		`, orgID, userID, string(types.DocumentTypeIDDocument), u.FileName, u.FileSize, u.MimeType, u.StorageKey, u.StorageKey)
+		`, orgID, userID, string(types.DocumentTypeIDDocument), u.FileName, u.FileSize, u.MimeType, u.StorageKey, downloadURL)
 		if err != nil {
 			return nil, err
 		}

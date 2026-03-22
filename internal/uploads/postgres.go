@@ -19,18 +19,48 @@ func NewPostgresRepository(pool *db.Pool) *PostgresRepository {
 	return &PostgresRepository{pool: pool}
 }
 
-func (r *PostgresRepository) Create(ctx context.Context, storageKey string, fileName string, fileSize int64, mimeType string) (*Upload, error) {
+func (r *PostgresRepository) Create(ctx context.Context, provider string, storageKey string, downloadURL *string, fileName string, fileSize int64, mimeType string) (*Upload, error) {
 	const q = `
-		INSERT INTO uploads (storage_key, file_name, file_size, mime_type)
-		VALUES ($1, $2, $3, $4)
-		RETURNING id::text, storage_key, file_name, file_size, mime_type, status::text, created_at, completed_at
+		INSERT INTO uploads (provider, storage_key, download_url, file_name, file_size, mime_type)
+		VALUES ($1, $2, $3, $4, $5, $6)
+		RETURNING id::text, provider, storage_key, download_url, file_name, file_size, mime_type, status::text, created_at, completed_at
 	`
 
 	var u Upload
 	var status string
-	err := r.pool.QueryRow(ctx, q, storageKey, fileName, fileSize, mimeType).Scan(
+	err := r.pool.QueryRow(ctx, q, provider, storageKey, downloadURL, fileName, fileSize, mimeType).Scan(
 		&u.ID,
+		&u.Provider,
 		&u.StorageKey,
+		&u.DownloadURL,
+		&u.FileName,
+		&u.FileSize,
+		&u.MimeType,
+		&status,
+		&u.CreatedAt,
+		&u.CompletedAt,
+	)
+	if err != nil {
+		return nil, err
+	}
+	u.Status = UploadStatus(status)
+	return &u, nil
+}
+
+func (r *PostgresRepository) CreateCompleted(ctx context.Context, provider string, storageKey string, downloadURL *string, fileName string, fileSize int64, mimeType string) (*Upload, error) {
+	const q = `
+		INSERT INTO uploads (provider, storage_key, download_url, file_name, file_size, mime_type, status, completed_at)
+		VALUES ($1, $2, $3, $4, $5, $6, 'completed'::upload_status, NOW())
+		RETURNING id::text, provider, storage_key, download_url, file_name, file_size, mime_type, status::text, created_at, completed_at
+	`
+
+	var u Upload
+	var status string
+	err := r.pool.QueryRow(ctx, q, provider, storageKey, downloadURL, fileName, fileSize, mimeType).Scan(
+		&u.ID,
+		&u.Provider,
+		&u.StorageKey,
+		&u.DownloadURL,
 		&u.FileName,
 		&u.FileSize,
 		&u.MimeType,
@@ -63,7 +93,7 @@ func (r *PostgresRepository) MarkCompleted(ctx context.Context, id string) error
 
 func (r *PostgresRepository) Get(ctx context.Context, id string) (*Upload, error) {
 	const q = `
-		SELECT id::text, storage_key, file_name, file_size, mime_type, status::text, created_at, completed_at
+		SELECT id::text, provider, storage_key, download_url, file_name, file_size, mime_type, status::text, created_at, completed_at
 		FROM uploads
 		WHERE id = $1
 	`
@@ -72,7 +102,9 @@ func (r *PostgresRepository) Get(ctx context.Context, id string) (*Upload, error
 	var status string
 	err := r.pool.QueryRow(ctx, q, id).Scan(
 		&u.ID,
+		&u.Provider,
 		&u.StorageKey,
+		&u.DownloadURL,
 		&u.FileName,
 		&u.FileSize,
 		&u.MimeType,

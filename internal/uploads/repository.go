@@ -14,7 +14,9 @@ const (
 
 type Upload struct {
 	ID          string
+	Provider    string
 	StorageKey  string
+	DownloadURL *string
 	FileName    string
 	FileSize    int64
 	MimeType    string
@@ -24,7 +26,8 @@ type Upload struct {
 }
 
 type Repository interface {
-	Create(ctx context.Context, storageKey string, fileName string, fileSize int64, mimeType string) (*Upload, error)
+	Create(ctx context.Context, provider string, storageKey string, downloadURL *string, fileName string, fileSize int64, mimeType string) (*Upload, error)
+	CreateCompleted(ctx context.Context, provider string, storageKey string, downloadURL *string, fileName string, fileSize int64, mimeType string) (*Upload, error)
 	MarkCompleted(ctx context.Context, id string) error
 	Get(ctx context.Context, id string) (*Upload, error)
 }
