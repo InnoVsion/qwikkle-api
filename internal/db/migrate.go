@@ -25,6 +25,8 @@ func RunMigrations(ctx context.Context, dsn string, migrationsDir string) error 
 		return err
 	}
 
+	cfg.DefaultQueryExecMode = pgx.QueryExecModeSimpleProtocol
+
 	db := stdlib.OpenDB(*cfg)
 	defer db.Close()
 

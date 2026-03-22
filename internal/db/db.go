@@ -2,10 +2,13 @@ package db
 
 import (
 	"context"
-	"github.com/jackc/pgx/v5/pgxpool"
 	"log"
 	"os"
+	"strings"
 	"time"
+
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type Pool struct {
@@ -21,6 +24,10 @@ func New(ctx context.Context) *Pool {
 	cfg, err := pgxpool.ParseConfig(dsn)
 	if err != nil {
 		log.Fatalf("failed to parse POSTGRES_DSN: %v", err)
+	}
+
+	if strings.Contains(cfg.ConnConfig.Host, "pooler") {
+		cfg.ConnConfig.DefaultQueryExecMode = pgx.QueryExecModeSimpleProtocol
 	}
 
 	cfg.MaxConns = 10
