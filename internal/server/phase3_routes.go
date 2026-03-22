@@ -67,23 +67,13 @@ func registerPhase3Routes(
 			return
 		}
 
-		provider := cfg.StorageProvider
-		if provider == "" {
-			provider = "s3"
-		}
-
-		if provider != "s3" && provider != "minio" {
-			c.JSON(http.StatusNotImplemented, gin.H{"error": "presign not supported for this storage provider"})
-			return
-		}
-
 		if cfg.S3Bucket == "" {
 			c.JSON(http.StatusNotImplemented, gin.H{"error": "uploads not configured"})
 			return
 		}
 
 		storageKey := buildStorageKey(req.FileName)
-		upload, err := uploadsRepo.Create(c.Request.Context(), provider, storageKey, nil, req.FileName, req.FileSize, req.MimeType)
+		upload, err := uploadsRepo.Create(c.Request.Context(), "s3", storageKey, nil, req.FileName, req.FileSize, req.MimeType)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "could not create upload"})
 			return

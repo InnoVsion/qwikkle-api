@@ -9,7 +9,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
-	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 )
 
 type S3Presigner struct {
@@ -77,7 +76,6 @@ func (p *S3Presigner) PresignPutObject(
 		Bucket:      aws.String(bucket),
 		Key:         aws.String(key),
 		ContentType: aws.String(contentType),
-		ACL:         types.ObjectCannedACLPrivate,
 	}
 
 	out, err := p.presignClient.PresignPutObject(ctx, input, func(opts *s3.PresignOptions) {
@@ -87,10 +85,51 @@ func (p *S3Presigner) PresignPutObject(
 		return PresignResult{}, err
 	}
 
+	headers := headerToMap(out.SignedHeader)
+	for k, v := range DefaultHeaders(contentType, contentLength) {
+		headers[k] = v
+	}
+
 	return PresignResult{
 		URL:     out.URL,
 		Method:  "PUT",
-		Headers: DefaultHeaders(contentType, contentLength),
+		Headers: headers,
 		Expires: time.Now().Add(expiry),
 	}, nil
+}
+
+func (p *S3Presigner) PresignGetObject(ctx context.Context, bucket string, key string, expiry time.Duration) (PresignResult, error) {
+	if bucket == "" || key == "" {
+		return PresignResult{}, errors.New("bucket and key are required")
+	}
+
+	input := &s3.GetObjectInput{
+		Bucket: aws.String(bucket),
+		Key:    aws.String(key),
+	}
+
+	out, err := p.presignClient.PresignGetObject(ctx, input, func(opts *s3.PresignOptions) {
+		opts.Expires = expiry
+	})
+	if err != nil {
+		return PresignResult{}, err
+	}
+
+	return PresignResult{
+		URL:     out.URL,
+		Method:  "GET",
+		Headers: headerToMap(out.SignedHeader),
+		Expires: time.Now().Add(expiry),
+	}, nil
+}
+
+func headerToMap(h map[string][]string) map[string]string {
+	out := map[string]string{}
+	for k, values := range h {
+		if len(values) == 0 {
+			continue
+		}
+		out[k] = values[0]
+	}
+	return out
 }

@@ -60,16 +60,14 @@ func New(cfg config.Config, pool *db.Pool, log *zap.Logger) *Server {
 	orgRepo := org.NewPostgresRepository(pool, uploadsRepo)
 
 	presigner := storage.NewNoopPresigner()
-	if cfg.StorageProvider == "s3" || cfg.StorageProvider == "minio" {
-		s3p, err := storage.NewS3Presigner(context.Background(), storage.S3Config{
-			Region:          cfg.S3Region,
-			Endpoint:        cfg.S3Endpoint,
-			AccessKeyID:     cfg.S3AccessKeyID,
-			SecretAccessKey: cfg.S3SecretAccessKey,
-		})
-		if err == nil {
-			presigner = s3p
-		}
+	s3p, err := storage.NewS3Presigner(context.Background(), storage.S3Config{
+		Region:          cfg.S3Region,
+		Endpoint:        cfg.S3Endpoint,
+		AccessKeyID:     cfg.S3AccessKeyID,
+		SecretAccessKey: cfg.S3SecretAccessKey,
+	})
+	if err == nil {
+		presigner = s3p
 	}
 
 	r := NewRouter(cfg, repo, adminRepo, uploadsRepo, presigner, orgRepo, log)

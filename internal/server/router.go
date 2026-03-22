@@ -300,7 +300,7 @@ func NewRouter(
 
 	admin := r.Group("/admin")
 	admin.Use(requireAdmin(cfg, repo))
-	registerAdminRoutes(admin, adminRepo)
+	registerAdminRoutes(admin, adminRepo, cfg, presigner)
 
 	return r
 }

@@ -14,7 +14,6 @@ type Config struct {
 	JWTRefreshSecret   string
 	CookieDomain       string
 	CORSAllowedOrigins string
-	StorageProvider    string
 	S3Region           string
 	S3Bucket           string
 	S3Endpoint         string
@@ -48,10 +47,6 @@ func Load() Config {
 
 	cookieDomain := os.Getenv("COOKIE_DOMAIN")
 	corsAllowedOrigins := os.Getenv("CORS_ALLOWED_ORIGINS")
-	storageProvider := os.Getenv("STORAGE_PROVIDER")
-	if storageProvider == "" {
-		storageProvider = "s3"
-	}
 
 	return Config{
 		Port:               port,
@@ -60,7 +55,6 @@ func Load() Config {
 		JWTRefreshSecret:   jwtRefreshSecret,
 		CookieDomain:       cookieDomain,
 		CORSAllowedOrigins: corsAllowedOrigins,
-		StorageProvider:    storageProvider,
 		S3Region:           os.Getenv("S3_REGION"),
 		S3Bucket:           os.Getenv("S3_BUCKET"),
 		S3Endpoint:         os.Getenv("S3_ENDPOINT"),

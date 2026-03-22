@@ -50,6 +50,7 @@ type OrganizationDocument struct {
 	OrganizationName    string               `json:"organizationName"`
 	OrganizationLogoURL *string              `json:"organizationLogoUrl,omitempty"`
 	Type                types.DocumentType   `json:"type"`
+	StorageKey          string               `json:"storageKey"`
 	FileName            string               `json:"fileName"`
 	FileSize            int64                `json:"fileSize"`
 	MimeType            string               `json:"mimeType"`

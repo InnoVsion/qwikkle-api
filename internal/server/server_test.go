@@ -509,6 +509,15 @@ func (p fakePresigner) PresignPutObject(ctx context.Context, bucket string, key 
 	}, nil
 }
 
+func (p fakePresigner) PresignGetObject(ctx context.Context, bucket string, key string, expiry time.Duration) (storage.PresignResult, error) {
+	return storage.PresignResult{
+		URL:     "https://example.com/" + bucket + "/" + key + "?download=1",
+		Method:  "GET",
+		Headers: map[string]string{},
+		Expires: time.Now().Add(expiry),
+	}, nil
+}
+
 type memoryOrgRepo struct {
 	mu        sync.Mutex
 	nextOrgID int
@@ -583,6 +592,7 @@ func (r *memoryOrgRepo) SignupOrganization(ctx context.Context, in org.SignupOrg
 		OrganizationID:   orgID,
 		OrganizationName: in.OrganizationName,
 		Type:             types.DocumentTypeRegistrationCertificate,
+		StorageKey:       bu.StorageKey,
 		FileName:         bu.FileName,
 		FileSize:         bu.FileSize,
 		MimeType:         bu.MimeType,
@@ -601,6 +611,7 @@ func (r *memoryOrgRepo) SignupOrganization(ctx context.Context, in org.SignupOrg
 			OrganizationID:   orgID,
 			OrganizationName: in.OrganizationName,
 			Type:             types.DocumentTypeIDDocument,
+			StorageKey:       "uploads/mock/" + docID,
 			FileName:         "id.png",
 			FileSize:         10,
 			MimeType:         "image/png",
@@ -629,7 +640,6 @@ func newTestRouter(t *testing.T) (*memoryAuthRepo, *memoryAdminRepo, http.Handle
 		JWTRefreshSecret:   "test-refresh-secret",
 		CookieDomain:       "",
 		CORSAllowedOrigins: "",
-		StorageProvider:    "s3",
 		S3Bucket:           "test-bucket",
 	}
 
@@ -882,6 +892,7 @@ func TestAPIEndpoints(t *testing.T) {
 			OrganizationID:   org.ID,
 			OrganizationName: org.Name,
 			Type:             types.DocumentTypeRegistrationCertificate,
+			StorageKey:       "uploads/doc_1/reg.pdf",
 			FileName:         "reg.pdf",
 			FileSize:         123,
 			MimeType:         "application/pdf",
@@ -920,6 +931,20 @@ func TestAPIEndpoints(t *testing.T) {
 		}
 		if docRes.ReviewedByID == nil || *docRes.ReviewedByID != adminUser.ID {
 			t.Fatalf("expected reviewedById = %q", adminUser.ID)
+		}
+
+		downloadRR := doJSON(t, router, http.MethodGet, "/admin/documents/doc_1/download", nil, accessCookie)
+		if downloadRR.Code != http.StatusOK {
+			t.Fatalf("status = %d, body=%s", downloadRR.Code, downloadRR.Body.String())
+		}
+		var downloadRes struct {
+			URL string `json:"url"`
+		}
+		if err := json.Unmarshal(downloadRR.Body.Bytes(), &downloadRes); err != nil {
+			t.Fatalf("unmarshal download: %v", err)
+		}
+		if downloadRes.URL == "" {
+			t.Fatalf("expected non-empty url")
 		}
 	})
 

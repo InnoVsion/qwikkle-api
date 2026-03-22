@@ -15,6 +15,7 @@ type PresignResult struct {
 
 type Presigner interface {
 	PresignPutObject(ctx context.Context, bucket string, key string, contentType string, contentLength int64, expiry time.Duration) (PresignResult, error)
+	PresignGetObject(ctx context.Context, bucket string, key string, expiry time.Duration) (PresignResult, error)
 }
 
 type NotConfiguredError struct{}
@@ -28,6 +29,10 @@ func NewNoopPresigner() Presigner {
 type noopPresigner struct{}
 
 func (p noopPresigner) PresignPutObject(ctx context.Context, bucket string, key string, contentType string, contentLength int64, expiry time.Duration) (PresignResult, error) {
+	return PresignResult{}, NotConfiguredError{}
+}
+
+func (p noopPresigner) PresignGetObject(ctx context.Context, bucket string, key string, expiry time.Duration) (PresignResult, error) {
 	return PresignResult{}, NotConfiguredError{}
 }
 

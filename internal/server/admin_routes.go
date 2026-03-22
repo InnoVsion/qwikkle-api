@@ -4,14 +4,17 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 
 	"qwikkle-api/internal/admin"
+	"qwikkle-api/internal/config"
+	"qwikkle-api/internal/storage"
 	"qwikkle-api/internal/types"
 )
 
-func registerAdminRoutes(r *gin.RouterGroup, repo admin.Repository) {
+func registerAdminRoutes(r *gin.RouterGroup, repo admin.Repository, cfg config.Config, presigner storage.Presigner) {
 	r.GET("/users", func(c *gin.Context) {
 		params, ok := parseListUsersParams(c)
 		if !ok {
@@ -176,6 +179,38 @@ func registerAdminRoutes(r *gin.RouterGroup, repo admin.Repository) {
 			return
 		}
 		c.JSON(http.StatusOK, d)
+	})
+
+	r.GET("/documents/:id/download", func(c *gin.Context) {
+		if cfg.S3Bucket == "" {
+			c.JSON(http.StatusNotImplemented, gin.H{"error": "downloads not configured"})
+			return
+		}
+
+		d, err := repo.GetDocument(c.Request.Context(), c.Param("id"))
+		if err != nil {
+			if err == admin.ErrNotFound {
+				c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
+				return
+			}
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "internal error"})
+			return
+		}
+		if d.StorageKey == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "document has no storage key"})
+			return
+		}
+
+		p, err := presigner.PresignGetObject(c.Request.Context(), cfg.S3Bucket, d.StorageKey, 10*time.Minute)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "could not create download url"})
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{
+			"url":     p.URL,
+			"expires": p.Expires,
+		})
 	})
 
 	r.PATCH("/documents/:id/approve", func(c *gin.Context) {
