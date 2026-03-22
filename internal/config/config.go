@@ -8,9 +8,10 @@ import (
 )
 
 type Config struct {
-	Port           string
-	AppEnv         string
-	JWTAccessSecret string
+	Port             string
+	AppEnv           string
+	JWTAccessSecret  string
+	JWTRefreshSecret string
 }
 
 func Load() Config {
@@ -32,10 +33,15 @@ func Load() Config {
 		log.Fatal("JWT_ACCESS_SECRET must be set")
 	}
 
+	jwtRefreshSecret := os.Getenv("JWT_REFRESH_SECRET")
+	if jwtRefreshSecret == "" {
+		log.Fatal("JWT_REFRESH_SECRET must be set")
+	}
+
 	return Config{
-		Port:           port,
-		AppEnv:         env,
-		JWTAccessSecret: jwtSecret,
+		Port:             port,
+		AppEnv:           env,
+		JWTAccessSecret:  jwtSecret,
+		JWTRefreshSecret: jwtRefreshSecret,
 	}
 }
-

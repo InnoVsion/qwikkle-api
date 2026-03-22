@@ -19,3 +19,5 @@ services:
         sync: false
       - key: POSTGRES_DSN
         sync: false
+      - key: RUN_MIGRATIONS
+        value: "true"

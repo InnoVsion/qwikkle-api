@@ -11,14 +11,14 @@ import (
 )
 
 var (
-	ErrEmailTaken          = errors.New("email already registered")
-	ErrInvalidCredentials  = errors.New("invalid email or password")
-	ErrUserNotFound        = errors.New("user not found")
+	ErrIdentityTaken      = errors.New("identity already registered")
+	ErrInvalidCredentials = errors.New("invalid qkId or password")
+	ErrUserNotFound       = errors.New("user not found")
 )
 
 type Repository interface {
-	CreateUser(ctx context.Context, email, passwordHash string) (*User, error)
-	GetUserByEmail(ctx context.Context, email string) (*User, error)
+	CreateUser(ctx context.Context, qkID string, email *string, passwordHash string, role string) (*User, error)
+	GetUserByQKID(ctx context.Context, qkID string) (*User, error)
 }
 
 type postgresRepo struct {
@@ -29,34 +29,54 @@ func NewPostgresRepository(pool *db.Pool) Repository {
 	return &postgresRepo{pool: pool}
 }
 
-func (r *postgresRepo) CreateUser(ctx context.Context, email, passwordHash string) (*User, error) {
+func (r *postgresRepo) CreateUser(ctx context.Context, qkID string, email *string, passwordHash string, role string) (*User, error) {
 	const q = `
-		INSERT INTO users (email, password_hash)
-		VALUES ($1, $2)
-		RETURNING id, email, password_hash
+		INSERT INTO users (qk_id, email, password_hash, role)
+		VALUES ($1, $2, $3, $4)
+		RETURNING id, qk_id, email, password_hash, role, status, created_at, last_login_at
 	`
 
 	var u User
-	err := r.pool.QueryRow(ctx, q, email, passwordHash).Scan(&u.ID, &u.Email, &u.PasswordHash)
+	err := r.pool.QueryRow(ctx, q, qkID, email, passwordHash, role).Scan(
+		&u.ID,
+		&u.QKID,
+		&u.Email,
+		&u.PasswordHash,
+		&u.Role,
+		&u.Status,
+		&u.CreatedAt,
+		&u.LastLoginAt,
+	)
 	if err != nil {
 		var pgErr *pgconn.PgError
-		if errors.As(err, &pgErr) && pgErr.ConstraintName == "users_email_key" {
-			return nil, ErrEmailTaken
+		if errors.As(err, &pgErr) {
+			if pgErr.ConstraintName == "users_email_key" || pgErr.ConstraintName == "users_qk_id_key" {
+				return nil, ErrIdentityTaken
+			}
 		}
 		return nil, err
 	}
 	return &u, nil
 }
 
-func (r *postgresRepo) GetUserByEmail(ctx context.Context, email string) (*User, error) {
+func (r *postgresRepo) GetUserByQKID(ctx context.Context, qkID string) (*User, error) {
 	const q = `
-		SELECT id, email, password_hash
+		SELECT id, qk_id, email, password_hash, role, status, created_at, last_login_at
 		FROM users
-		WHERE email = $1
+		WHERE qk_id = $1
 	`
 
 	var u User
-	err := r.pool.QueryRow(ctx, q, email).Scan(&u.ID, &u.Email, &u.PasswordHash)
+	err := r.pool.QueryRow(ctx, q, qkID).Scan(
+		&u.ID,
+		&u.QKID,
+		&u.Email,
+		&u.PasswordHash,
+		&u.Role,
+		&u.Status,
+		&u.CreatedAt,
+		&u.LastLoginAt,
+	)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, ErrUserNotFound
@@ -65,4 +85,3 @@ func (r *postgresRepo) GetUserByEmail(ctx context.Context, email string) (*User,
 	}
 	return &u, nil
 }
-

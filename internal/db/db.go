@@ -2,10 +2,10 @@ package db
 
 import (
 	"context"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"log"
 	"os"
 	"time"
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type Pool struct {
@@ -34,4 +34,3 @@ func New(ctx context.Context) *Pool {
 
 	return &Pool{Pool: pool}
 }
-

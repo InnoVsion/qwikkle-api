@@ -20,4 +20,3 @@ func Handler(w http.ResponseWriter, r *http.Request) {
 
 	_ = json.NewEncoder(w).Encode(response{Status: "ok"})
 }
-

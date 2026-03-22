@@ -23,6 +23,12 @@ func main() {
 	logg := logger.New()
 	defer logg.Sync()
 
+	if db.MigrationsEnabled() {
+		if err := db.RunMigrations(ctx, os.Getenv("POSTGRES_DSN"), "internal/db/migrations"); err != nil {
+			log.Fatalf("migrations failed: %v", err)
+		}
+	}
+
 	srv := server.New(cfg, pool, logg)
 	httpServer := srv.HTTPServer()
 

@@ -6,12 +6,12 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"syscall"
-	"time"
 	"qwikkle-api/internal/config"
 	"qwikkle-api/internal/db"
 	"qwikkle-api/internal/logger"
 	"qwikkle-api/internal/server"
+	"syscall"
+	"time"
 )
 
 func main() {
@@ -46,4 +46,3 @@ func main() {
 		log.Println("server stopped")
 	}
 }
-

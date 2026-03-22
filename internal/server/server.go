@@ -21,12 +21,13 @@ type Server struct {
 }
 
 type signupRequest struct {
-	Email    string `json:"email" binding:"required,email"`
-	Password string `json:"password" binding:"required,min=6"`
+	QKID     string  `json:"qkId" binding:"required"`
+	Email    *string `json:"email" binding:"omitempty,email"`
+	Password string  `json:"password" binding:"required,min=6"`
 }
 
 type loginRequest struct {
-	Email    string `json:"email" binding:"required,email"`
+	QKID     string `json:"qkId" binding:"required"`
 	Password string `json:"password" binding:"required"`
 }
 
@@ -69,11 +70,11 @@ func New(cfg config.Config, pool *db.Pool, log *zap.Logger) *Server {
 			return
 		}
 
-		user, token, err := authService.Signup(c.Request.Context(), req.Email, req.Password)
+		user, token, err := authService.Signup(c.Request.Context(), req.QKID, req.Email, req.Password)
 		if err != nil {
 			switch err {
-			case auth.ErrEmailTaken:
-				c.JSON(http.StatusConflict, gin.H{"error": "email already in use"})
+			case auth.ErrIdentityTaken:
+				c.JSON(http.StatusConflict, gin.H{"error": "qkId or email already in use"})
 			default:
 				c.JSON(http.StatusInternalServerError, gin.H{"error": "could not create user"})
 			}
@@ -104,11 +105,11 @@ func New(cfg config.Config, pool *db.Pool, log *zap.Logger) *Server {
 			return
 		}
 
-		user, token, err := authService.Login(c.Request.Context(), req.Email, req.Password)
+		user, token, err := authService.Login(c.Request.Context(), req.QKID, req.Password)
 		if err != nil {
 			switch err {
 			case auth.ErrInvalidCredentials:
-				c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid email or password"})
+				c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid qkId or password"})
 			default:
 				c.JSON(http.StatusInternalServerError, gin.H{"error": "could not log in"})
 			}
@@ -136,4 +137,3 @@ func New(cfg config.Config, pool *db.Pool, log *zap.Logger) *Server {
 func (s *Server) HTTPServer() *http.Server {
 	return s.httpServer
 }
-
