@@ -8,10 +8,12 @@ import (
 )
 
 type Config struct {
-	Port             string
-	AppEnv           string
-	JWTAccessSecret  string
-	JWTRefreshSecret string
+	Port               string
+	AppEnv             string
+	JWTAccessSecret    string
+	JWTRefreshSecret   string
+	CookieDomain       string
+	CORSAllowedOrigins string
 }
 
 func Load() Config {
@@ -38,10 +40,15 @@ func Load() Config {
 		log.Fatal("JWT_REFRESH_SECRET must be set")
 	}
 
+	cookieDomain := os.Getenv("COOKIE_DOMAIN")
+	corsAllowedOrigins := os.Getenv("CORS_ALLOWED_ORIGINS")
+
 	return Config{
-		Port:             port,
-		AppEnv:           env,
-		JWTAccessSecret:  jwtSecret,
-		JWTRefreshSecret: jwtRefreshSecret,
+		Port:               port,
+		AppEnv:             env,
+		JWTAccessSecret:    jwtSecret,
+		JWTRefreshSecret:   jwtRefreshSecret,
+		CookieDomain:       cookieDomain,
+		CORSAllowedOrigins: corsAllowedOrigins,
 	}
 }

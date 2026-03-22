@@ -49,7 +49,7 @@ func (s *Service) Signup(ctx context.Context, qkID string, email *string, passwo
 		return nil, "", err
 	}
 
-	token, err := s.generateToken(u)
+	token, err := s.generateToken(u, 24*time.Hour)
 	if err != nil {
 		return nil, "", err
 	}
@@ -75,7 +75,7 @@ func (s *Service) Login(ctx context.Context, qkID, password string) (*User, stri
 		return nil, "", ErrInvalidCredentials
 	}
 
-	token, err := s.generateToken(u)
+	token, err := s.generateToken(u, 24*time.Hour)
 	if err != nil {
 		return nil, "", err
 	}
@@ -83,12 +83,16 @@ func (s *Service) Login(ctx context.Context, qkID, password string) (*User, stri
 	return u, token, nil
 }
 
-func (s *Service) generateToken(u *User) (string, error) {
+func (s *Service) GenerateAccessToken(u *User, ttl time.Duration) (string, error) {
+	return s.generateToken(u, ttl)
+}
+
+func (s *Service) generateToken(u *User, ttl time.Duration) (string, error) {
 	claims := jwt.MapClaims{
 		"sub":  u.ID,
 		"qkId": u.QKID,
 		"role": u.Role,
-		"exp":  time.Now().Add(24 * time.Hour).Unix(),
+		"exp":  time.Now().Add(ttl).Unix(),
 		"iat":  time.Now().Unix(),
 	}
 
