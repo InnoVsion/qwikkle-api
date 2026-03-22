@@ -85,6 +85,54 @@ func New(cfg config.Config, pool *db.Pool, log *zap.Logger) *Server {
 	}
 
 	r := NewRouter(cfg, repo, adminRepo, uploadsRepo, presigner, orgRepo, log)
+	r.GET("/readyz", func(c *gin.Context) {
+		ctx, cancel := context.WithTimeout(c.Request.Context(), 2*time.Second)
+		defer cancel()
+
+		if err := pool.Ping(ctx); err != nil {
+			c.JSON(http.StatusServiceUnavailable, gin.H{"status": "error", "db": "down"})
+			return
+		}
+
+		type tableCheck struct {
+			Name   string `json:"name"`
+			Exists bool   `json:"exists"`
+		}
+
+		checks := []tableCheck{
+			{Name: "goose_db_version"},
+			{Name: "users"},
+			{Name: "sessions"},
+			{Name: "organizations"},
+			{Name: "organization_members"},
+			{Name: "organization_documents"},
+			{Name: "uploads"},
+		}
+
+		allTables := true
+		for i := range checks {
+			var exists bool
+			if err := pool.QueryRow(ctx, `SELECT to_regclass($1) IS NOT NULL`, "public."+checks[i].Name).Scan(&exists); err != nil {
+				allTables = false
+				continue
+			}
+			checks[i].Exists = exists
+			allTables = allTables && exists
+		}
+
+		status := "ok"
+		code := http.StatusOK
+		if !allTables {
+			status = "degraded"
+			code = http.StatusServiceUnavailable
+		}
+
+		c.JSON(code, gin.H{
+			"status": status,
+			"db":     "ok",
+			"tables": checks,
+		})
+	})
 
 	addr := fmt.Sprintf(":%s", cfg.Port)
 
