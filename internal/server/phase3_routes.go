@@ -32,15 +32,6 @@ type completeUploadRequest struct {
 	UploadID string `json:"uploadId" binding:"required"`
 }
 
-type registerUploadRequest struct {
-	Provider    string `json:"provider" binding:"required"`
-	StorageKey  string `json:"storageKey" binding:"required"`
-	DownloadURL string `json:"downloadUrl" binding:"required"`
-	FileName    string `json:"fileName" binding:"required"`
-	FileSize    int64  `json:"fileSize" binding:"required"`
-	MimeType    string `json:"mimeType" binding:"required"`
-}
-
 type signupOrganizationRequest struct {
 	OwnerQKID     string  `json:"qkId" binding:"required"`
 	OwnerPassword string  `json:"password" binding:"required,min=6"`
@@ -119,50 +110,6 @@ func registerPhase3Routes(
 			UploadID:   upload.ID,
 			StorageKey: storageKey,
 			Presign:    presign,
-		})
-	})
-
-	r.POST("/uploads/register", func(c *gin.Context) {
-		var req registerUploadRequest
-		if err := c.ShouldBindJSON(&req); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-			return
-		}
-
-		provider := cfg.StorageProvider
-		if provider == "" {
-			provider = "s3"
-		}
-
-		if req.Provider != provider {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "provider mismatch"})
-			return
-		}
-
-		downloadURL := strings.TrimSpace(req.DownloadURL)
-		if downloadURL == "" {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "downloadUrl is required"})
-			return
-		}
-
-		upload, err := uploadsRepo.CreateCompleted(
-			c.Request.Context(),
-			req.Provider,
-			req.StorageKey,
-			&downloadURL,
-			req.FileName,
-			req.FileSize,
-			req.MimeType,
-		)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "could not register upload"})
-			return
-		}
-
-		c.JSON(http.StatusOK, gin.H{
-			"uploadId":    upload.ID,
-			"storageKey":  upload.StorageKey,
-			"downloadUrl": upload.DownloadURL,
 		})
 	})
 

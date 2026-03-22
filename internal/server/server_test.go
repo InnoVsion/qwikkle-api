@@ -475,15 +475,6 @@ func (r *memoryUploadsRepo) Create(ctx context.Context, provider string, storage
 	return u, nil
 }
 
-func (r *memoryUploadsRepo) CreateCompleted(ctx context.Context, provider string, storageKey string, downloadURL *string, fileName string, fileSize int64, mimeType string) (*uploads.Upload, error) {
-	u, err := r.Create(ctx, provider, storageKey, downloadURL, fileName, fileSize, mimeType)
-	if err != nil {
-		return nil, err
-	}
-	_ = r.MarkCompleted(ctx, u.ID)
-	return u, nil
-}
-
 func (r *memoryUploadsRepo) MarkCompleted(ctx context.Context, id string) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
