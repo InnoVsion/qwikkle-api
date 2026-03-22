@@ -14,6 +14,11 @@ type Config struct {
 	JWTRefreshSecret   string
 	CookieDomain       string
 	CORSAllowedOrigins string
+	S3Region           string
+	S3Bucket           string
+	S3Endpoint         string
+	S3AccessKeyID      string
+	S3SecretAccessKey  string
 }
 
 func Load() Config {
@@ -50,5 +55,10 @@ func Load() Config {
 		JWTRefreshSecret:   jwtRefreshSecret,
 		CookieDomain:       cookieDomain,
 		CORSAllowedOrigins: corsAllowedOrigins,
+		S3Region:           os.Getenv("S3_REGION"),
+		S3Bucket:           os.Getenv("S3_BUCKET"),
+		S3Endpoint:         os.Getenv("S3_ENDPOINT"),
+		S3AccessKeyID:      os.Getenv("S3_ACCESS_KEY_ID"),
+		S3SecretAccessKey:  os.Getenv("S3_SECRET_ACCESS_KEY"),
 	}
 }

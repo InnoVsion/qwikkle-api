@@ -17,7 +17,10 @@ import (
 	"qwikkle-api/internal/admin"
 	"qwikkle-api/internal/auth"
 	"qwikkle-api/internal/config"
+	"qwikkle-api/internal/org"
+	"qwikkle-api/internal/storage"
 	"qwikkle-api/internal/types"
+	"qwikkle-api/internal/uploads"
 )
 
 type memoryAuthRepo struct {
@@ -439,6 +442,180 @@ func (r *memoryAdminRepo) documentsForOrgLocked(orgID string) []admin.Organizati
 	return out
 }
 
+type memoryUploadsRepo struct {
+	mu      sync.Mutex
+	nextID  int
+	uploads map[string]*uploads.Upload
+}
+
+func newMemoryUploadsRepo() *memoryUploadsRepo {
+	return &memoryUploadsRepo{
+		uploads: map[string]*uploads.Upload{},
+	}
+}
+
+func (r *memoryUploadsRepo) Create(ctx context.Context, storageKey string, fileName string, fileSize int64, mimeType string) (*uploads.Upload, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.nextID++
+	id := fmt.Sprintf("up_%d", r.nextID)
+	now := time.Now()
+	u := &uploads.Upload{
+		ID:         id,
+		StorageKey: storageKey,
+		FileName:   fileName,
+		FileSize:   fileSize,
+		MimeType:   mimeType,
+		Status:     uploads.UploadStatusPending,
+		CreatedAt:  now,
+	}
+	r.uploads[id] = u
+	return u, nil
+}
+
+func (r *memoryUploadsRepo) MarkCompleted(ctx context.Context, id string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	u, ok := r.uploads[id]
+	if !ok {
+		return uploads.ErrNotFound
+	}
+	now := time.Now()
+	u.Status = uploads.UploadStatusCompleted
+	u.CompletedAt = &now
+	return nil
+}
+
+func (r *memoryUploadsRepo) Get(ctx context.Context, id string) (*uploads.Upload, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	u, ok := r.uploads[id]
+	if !ok {
+		return nil, uploads.ErrNotFound
+	}
+	return u, nil
+}
+
+type fakePresigner struct{}
+
+func (p fakePresigner) PresignPutObject(ctx context.Context, bucket string, key string, contentType string, contentLength int64, expiry time.Duration) (storage.PresignResult, error) {
+	return storage.PresignResult{
+		URL:     "https://example.com/" + bucket + "/" + key,
+		Method:  "PUT",
+		Headers: storage.DefaultHeaders(contentType, contentLength),
+		Expires: time.Now().Add(expiry),
+	}, nil
+}
+
+type memoryOrgRepo struct {
+	mu        sync.Mutex
+	nextOrgID int
+	nextDocID int
+
+	authRepo    *memoryAuthRepo
+	adminRepo   *memoryAdminRepo
+	uploadsRepo *memoryUploadsRepo
+}
+
+func newMemoryOrgRepo(authRepo *memoryAuthRepo, adminRepo *memoryAdminRepo, uploadsRepo *memoryUploadsRepo) *memoryOrgRepo {
+	return &memoryOrgRepo{
+		authRepo:    authRepo,
+		adminRepo:   adminRepo,
+		uploadsRepo: uploadsRepo,
+	}
+}
+
+func (r *memoryOrgRepo) SignupOrganization(ctx context.Context, in org.SignupOrganizationInput) (*org.Result, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	ownerQKID, err := types.NormalizeQKID(in.OwnerQKID)
+	if err != nil {
+		return nil, err
+	}
+
+	bu, err := r.uploadsRepo.Get(ctx, in.BusinessCertificateUploadID)
+	if err != nil || bu.Status != uploads.UploadStatusCompleted {
+		return nil, org.ErrInvalidUpload
+	}
+	for _, reg := range in.RegistrantIDs {
+		u, err := r.uploadsRepo.Get(ctx, reg.IDDocumentUploadID)
+		if err != nil || u.Status != uploads.UploadStatusCompleted {
+			return nil, org.ErrInvalidUpload
+		}
+	}
+
+	hash, err := bcrypt.GenerateFromPassword([]byte(in.OwnerPassword), bcrypt.DefaultCost)
+	if err != nil {
+		return nil, err
+	}
+
+	user, err := r.authRepo.CreateUser(ctx, ownerQKID, nil, string(hash), "user")
+	if err != nil {
+		return nil, err
+	}
+
+	r.nextOrgID++
+	orgID := fmt.Sprintf("org_%d", r.nextOrgID)
+	now := time.Now()
+
+	r.adminRepo.mu.Lock()
+	r.adminRepo.orgs[orgID] = &admin.Organization{
+		ID:                 orgID,
+		Name:               in.OrganizationName,
+		Email:              in.OrganizationEmail,
+		Phone:              in.OrganizationPhone,
+		Status:             types.AccountStatusActive,
+		VerificationStatus: types.VerificationStatusPending,
+		MemberCount:        1,
+		CreatedAt:          now,
+		Documents:          nil,
+	}
+	r.adminRepo.mu.Unlock()
+
+	r.nextDocID++
+	businessDocID := fmt.Sprintf("doc_%d", r.nextDocID)
+	r.adminRepo.mu.Lock()
+	r.adminRepo.docs[businessDocID] = &admin.OrganizationDocument{
+		ID:               businessDocID,
+		OrganizationID:   orgID,
+		OrganizationName: in.OrganizationName,
+		Type:             types.DocumentTypeRegistrationCertificate,
+		FileName:         bu.FileName,
+		FileSize:         bu.FileSize,
+		MimeType:         bu.MimeType,
+		DownloadURL:      bu.StorageKey,
+		Status:           types.DocumentStatusPending,
+		UploadedAt:       now,
+	}
+	r.adminRepo.mu.Unlock()
+
+	for range in.RegistrantIDs {
+		r.nextDocID++
+		docID := fmt.Sprintf("doc_%d", r.nextDocID)
+		r.adminRepo.mu.Lock()
+		r.adminRepo.docs[docID] = &admin.OrganizationDocument{
+			ID:               docID,
+			OrganizationID:   orgID,
+			OrganizationName: in.OrganizationName,
+			Type:             types.DocumentTypeIDDocument,
+			FileName:         "id.png",
+			FileSize:         10,
+			MimeType:         "image/png",
+			DownloadURL:      "s3://mock",
+			Status:           types.DocumentStatusPending,
+			UploadedAt:       now,
+		}
+		r.adminRepo.mu.Unlock()
+	}
+
+	return &org.Result{
+		UserID:             user.ID,
+		OrganizationID:     orgID,
+		VerificationStatus: types.VerificationStatusPending,
+	}, nil
+}
+
 func newTestRouter(t *testing.T) (*memoryAuthRepo, *memoryAdminRepo, http.Handler) {
 	t.Setenv("BOOTSTRAP_ADMIN_QKID", "")
 	t.Setenv("BOOTSTRAP_ADMIN_PASSWORD", "")
@@ -450,11 +627,14 @@ func newTestRouter(t *testing.T) (*memoryAuthRepo, *memoryAdminRepo, http.Handle
 		JWTRefreshSecret:   "test-refresh-secret",
 		CookieDomain:       "",
 		CORSAllowedOrigins: "",
+		S3Bucket:           "test-bucket",
 	}
 
 	repo := newMemoryAuthRepo()
 	adminRepo := newMemoryAdminRepo(repo)
-	router := NewRouter(cfg, repo, adminRepo, zap.NewNop())
+	uploadsRepo := newMemoryUploadsRepo()
+	orgRepo := newMemoryOrgRepo(repo, adminRepo, uploadsRepo)
+	router := NewRouter(cfg, repo, adminRepo, uploadsRepo, fakePresigner{}, orgRepo, zap.NewNop())
 	return repo, adminRepo, router
 }
 
@@ -737,6 +917,113 @@ func TestAPIEndpoints(t *testing.T) {
 		}
 		if docRes.ReviewedByID == nil || *docRes.ReviewedByID != adminUser.ID {
 			t.Fatalf("expected reviewedById = %q", adminUser.ID)
+		}
+	})
+
+	t.Run("uploads and organization signup", func(t *testing.T) {
+		adminHash, err := bcrypt.GenerateFromPassword([]byte("adminpass123"), bcrypt.DefaultCost)
+		if err != nil {
+			t.Fatalf("hash password: %v", err)
+		}
+		_, err = repo.CreateUser(context.Background(), "superadmin.qk", nil, string(adminHash), "admin")
+		if err != nil && err != auth.ErrIdentityTaken {
+			t.Fatalf("create admin user: %v", err)
+		}
+
+		loginRR := doJSON(t, router, http.MethodPost, "/admin/auth/login", map[string]any{
+			"qkId":     "superadmin.qk",
+			"password": "adminpass123",
+		})
+		if loginRR.Code != http.StatusOK {
+			t.Fatalf("status = %d, body=%s", loginRR.Code, loginRR.Body.String())
+		}
+		accessCookie := findCookie(loginRR.Result(), "access_token")
+		if accessCookie == nil {
+			t.Fatalf("missing access cookie")
+		}
+
+		presignBusinessRR := doJSON(t, router, http.MethodPost, "/uploads/presign", map[string]any{
+			"fileName": "cert.pdf",
+			"fileSize": 10,
+			"mimeType": "application/pdf",
+		})
+		if presignBusinessRR.Code != http.StatusOK {
+			t.Fatalf("status = %d, body=%s", presignBusinessRR.Code, presignBusinessRR.Body.String())
+		}
+		var presignBusiness struct {
+			UploadID string `json:"uploadId"`
+		}
+		if err := json.Unmarshal(presignBusinessRR.Body.Bytes(), &presignBusiness); err != nil {
+			t.Fatalf("unmarshal presign business: %v", err)
+		}
+
+		presignRegistrantRR := doJSON(t, router, http.MethodPost, "/uploads/presign", map[string]any{
+			"fileName": "id.png",
+			"fileSize": 10,
+			"mimeType": "image/png",
+		})
+		if presignRegistrantRR.Code != http.StatusOK {
+			t.Fatalf("status = %d, body=%s", presignRegistrantRR.Code, presignRegistrantRR.Body.String())
+		}
+		var presignRegistrant struct {
+			UploadID string `json:"uploadId"`
+		}
+		if err := json.Unmarshal(presignRegistrantRR.Body.Bytes(), &presignRegistrant); err != nil {
+			t.Fatalf("unmarshal presign registrant: %v", err)
+		}
+
+		completeBusinessRR := doJSON(t, router, http.MethodPost, "/uploads/complete", map[string]any{
+			"uploadId": presignBusiness.UploadID,
+		})
+		if completeBusinessRR.Code != http.StatusNoContent {
+			t.Fatalf("status = %d, body=%s", completeBusinessRR.Code, completeBusinessRR.Body.String())
+		}
+
+		completeRegistrantRR := doJSON(t, router, http.MethodPost, "/uploads/complete", map[string]any{
+			"uploadId": presignRegistrant.UploadID,
+		})
+		if completeRegistrantRR.Code != http.StatusNoContent {
+			t.Fatalf("status = %d, body=%s", completeRegistrantRR.Code, completeRegistrantRR.Body.String())
+		}
+
+		orgSignupRR := doJSON(t, router, http.MethodPost, "/signup/organization", map[string]any{
+			"qkId":                        "orgowner",
+			"password":                    "password123",
+			"organizationName":            "Org Co",
+			"businessCertificateUploadId": presignBusiness.UploadID,
+			"registrants": []map[string]any{
+				{
+					"fullLegalName":      "Alice Admin",
+					"idDocumentUploadId": presignRegistrant.UploadID,
+				},
+			},
+		})
+		if orgSignupRR.Code != http.StatusCreated {
+			t.Fatalf("status = %d, body=%s", orgSignupRR.Code, orgSignupRR.Body.String())
+		}
+
+		orgsRR := doJSON(t, router, http.MethodGet, "/admin/organizations?page=1&limit=50", nil, accessCookie)
+		if orgsRR.Code != http.StatusOK {
+			t.Fatalf("status = %d, body=%s", orgsRR.Code, orgsRR.Body.String())
+		}
+		var orgsRes admin.PaginatedResponse[admin.Organization]
+		if err := json.Unmarshal(orgsRR.Body.Bytes(), &orgsRes); err != nil {
+			t.Fatalf("unmarshal orgs: %v", err)
+		}
+		if orgsRes.Meta.Total < 1 {
+			t.Fatalf("expected orgs in response")
+		}
+
+		docsRR := doJSON(t, router, http.MethodGet, "/admin/documents?page=1&limit=50", nil, accessCookie)
+		if docsRR.Code != http.StatusOK {
+			t.Fatalf("status = %d, body=%s", docsRR.Code, docsRR.Body.String())
+		}
+		var docsRes admin.PaginatedResponse[admin.OrganizationDocument]
+		if err := json.Unmarshal(docsRR.Body.Bytes(), &docsRes); err != nil {
+			t.Fatalf("unmarshal docs: %v", err)
+		}
+		if docsRes.Meta.Total < 1 {
+			t.Fatalf("expected docs in response")
 		}
 	})
 }

@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net/http"
@@ -15,7 +16,10 @@ import (
 	"qwikkle-api/internal/auth"
 	"qwikkle-api/internal/config"
 	"qwikkle-api/internal/db"
+	"qwikkle-api/internal/org"
+	"qwikkle-api/internal/storage"
 	"qwikkle-api/internal/types"
+	"qwikkle-api/internal/uploads"
 )
 
 type Server struct {
@@ -51,7 +55,24 @@ type adminMeResponse struct {
 func New(cfg config.Config, pool *db.Pool, log *zap.Logger) *Server {
 	repo := auth.NewPostgresRepository(pool)
 	adminRepo := admin.NewPostgresRepository(pool)
-	r := NewRouter(cfg, repo, adminRepo, log)
+
+	uploadsRepo := uploads.NewPostgresRepository(pool)
+	orgRepo := org.NewPostgresRepository(pool, uploadsRepo)
+
+	presigner := storage.NewNoopPresigner()
+	if cfg.S3Bucket != "" {
+		s3p, err := storage.NewS3Presigner(context.Background(), storage.S3Config{
+			Region:          cfg.S3Region,
+			Endpoint:        cfg.S3Endpoint,
+			AccessKeyID:     cfg.S3AccessKeyID,
+			SecretAccessKey: cfg.S3SecretAccessKey,
+		})
+		if err == nil {
+			presigner = s3p
+		}
+	}
+
+	r := NewRouter(cfg, repo, adminRepo, uploadsRepo, presigner, orgRepo, log)
 
 	addr := fmt.Sprintf(":%s", cfg.Port)
 

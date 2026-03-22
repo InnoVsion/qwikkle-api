@@ -14,11 +14,22 @@ import (
 	"qwikkle-api/internal/admin"
 	"qwikkle-api/internal/auth"
 	"qwikkle-api/internal/config"
+	"qwikkle-api/internal/org"
 	"qwikkle-api/internal/server/docs"
+	"qwikkle-api/internal/storage"
 	"qwikkle-api/internal/types"
+	"qwikkle-api/internal/uploads"
 )
 
-func NewRouter(cfg config.Config, repo auth.Repository, adminRepo admin.Repository, log *zap.Logger) *gin.Engine {
+func NewRouter(
+	cfg config.Config,
+	repo auth.Repository,
+	adminRepo admin.Repository,
+	uploadsRepo uploads.Repository,
+	presigner storage.Presigner,
+	orgRepo org.Repository,
+	log *zap.Logger,
+) *gin.Engine {
 	if cfg.AppEnv == "test" {
 		gin.SetMode(gin.TestMode)
 	} else {
@@ -284,6 +295,8 @@ func NewRouter(cfg config.Config, repo auth.Repository, adminRepo admin.Reposito
 			},
 		})
 	})
+
+	registerPhase3Routes(r, cfg, uploadsRepo, presigner, orgRepo)
 
 	admin := r.Group("/admin")
 	admin.Use(requireAdmin(cfg, repo))
