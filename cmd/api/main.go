@@ -9,6 +9,8 @@ import (
 	"syscall"
 	"time"
 
+	"go.uber.org/zap"
+
 	"qwikkle-api/internal/config"
 	"qwikkle-api/internal/db"
 	"qwikkle-api/internal/logger"
@@ -23,10 +25,21 @@ func main() {
 	logg := logger.New()
 	defer logg.Sync()
 
+	startupCtx, startupCancel := context.WithTimeout(ctx, 5*time.Second)
+	defer startupCancel()
+	if err := pool.Ping(startupCtx); err != nil {
+		logg.Fatal("postgres ping failed", zap.Error(err))
+	}
+	var databaseName string
+	_ = pool.QueryRow(startupCtx, "SELECT current_database()").Scan(&databaseName)
+	logg.Info("postgres connected", zap.String("database", databaseName))
+
 	if db.MigrationsEnabled() {
+		logg.Info("running migrations")
 		if err := db.RunMigrations(ctx, os.Getenv("POSTGRES_DSN"), "internal/db/migrations"); err != nil {
 			log.Fatalf("migrations failed: %v", err)
 		}
+		logg.Info("migrations complete")
 	}
 
 	srv := server.New(cfg, pool, logg)

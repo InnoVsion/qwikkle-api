@@ -68,6 +68,20 @@ func New(cfg config.Config, pool *db.Pool, log *zap.Logger) *Server {
 	})
 	if err == nil {
 		presigner = s3p
+		log.Info("s3 presigner ready")
+	} else {
+		log.Warn("s3 presigner not configured", zap.Error(err))
+	}
+
+	if cfg.S3Bucket == "" {
+		log.Warn("s3 bucket not configured; uploads disabled")
+	} else {
+		log.Info(
+			"s3 uploads configured",
+			zap.String("bucket", cfg.S3Bucket),
+			zap.String("region", cfg.S3Region),
+			zap.String("endpoint", cfg.S3Endpoint),
+		)
 	}
 
 	r := NewRouter(cfg, repo, adminRepo, uploadsRepo, presigner, orgRepo, log)
