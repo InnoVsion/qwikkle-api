@@ -139,7 +139,7 @@ func (r *postgresRepo) CreateUser(ctx context.Context, in CreateUserInput) (*Use
 			interests,
 			avatar_storage_key,
 			avatar_download_url,
-			organization_id,
+			organization_id::text,
 			created_at,
 			last_login_at
 	`
@@ -215,7 +215,7 @@ func (r *postgresRepo) GetUserByQKID(ctx context.Context, qkID string) (*User, e
 			interests,
 			avatar_storage_key,
 			avatar_download_url,
-			organization_id,
+			organization_id::text,
 			created_at,
 			last_login_at
 		FROM users
@@ -272,7 +272,7 @@ func (r *postgresRepo) GetUserByID(ctx context.Context, id string) (*User, error
 			interests,
 			avatar_storage_key,
 			avatar_download_url,
-			organization_id,
+			organization_id::text,
 			created_at,
 			last_login_at
 		FROM users

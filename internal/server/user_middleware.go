@@ -57,4 +57,3 @@ func getUser(c *gin.Context) (*auth.User, bool) {
 	u, ok := v.(*auth.User)
 	return u, ok
 }
-
