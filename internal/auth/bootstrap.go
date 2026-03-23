@@ -34,6 +34,12 @@ func BootstrapAdmin(ctx context.Context, repo Repository) error {
 		return err
 	}
 
-	_, err = repo.CreateUser(ctx, normalizedQKID, nil, string(hash), string(types.UserRoleAdmin))
+	_, err = repo.CreateUser(ctx, CreateUserInput{
+		QKID:         normalizedQKID,
+		Email:        nil,
+		PasswordHash: string(hash),
+		Role:         string(types.UserRoleAdmin),
+		Status:       types.AccountStatusActive,
+	})
 	return err
 }

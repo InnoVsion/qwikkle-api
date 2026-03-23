@@ -27,9 +27,17 @@ type Server struct {
 }
 
 type signupRequest struct {
-	QKID     string  `json:"qkId" binding:"required"`
-	Email    *string `json:"email" binding:"omitempty,email"`
-	Password string  `json:"password" binding:"required,min=6"`
+	QKID          string   `json:"qkId" binding:"required"`
+	Email         *string  `json:"email" binding:"omitempty,email"`
+	Password      string   `json:"password" binding:"required,min=6"`
+	FirstName     *string  `json:"firstName"`
+	LastName      *string  `json:"lastName"`
+	Phone         *string  `json:"phone"`
+	Gender        *string  `json:"gender"`
+	DateOfBirth   *string  `json:"dateOfBirth"`
+	Country       *string  `json:"country"`
+	Interests     []string `json:"interests"`
+	AvatarUploadID *string `json:"avatarUploadId"`
 }
 
 type loginRequest struct {

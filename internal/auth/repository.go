@@ -9,6 +9,7 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 
 	"qwikkle-api/internal/db"
+	"qwikkle-api/internal/types"
 )
 
 var (
@@ -19,9 +20,10 @@ var (
 )
 
 type Repository interface {
-	CreateUser(ctx context.Context, qkID string, email *string, passwordHash string, role string) (*User, error)
+	CreateUser(ctx context.Context, in CreateUserInput) (*User, error)
 	GetUserByID(ctx context.Context, id string) (*User, error)
 	GetUserByQKID(ctx context.Context, qkID string) (*User, error)
+	UpdateUserProfile(ctx context.Context, userID string, in UpdateUserProfileInput) (*User, error)
 	CreateSession(ctx context.Context, userID string, refreshTokenHash string, expiresAt time.Time, userAgent string, ip string) (string, error)
 	GetSessionByRefreshTokenHash(ctx context.Context, refreshTokenHash string) (*Session, error)
 	RotateSession(ctx context.Context, sessionID string, refreshTokenHash string, expiresAt time.Time) error
@@ -47,21 +49,138 @@ func NewPostgresRepository(pool *db.Pool) Repository {
 	return &postgresRepo{pool: pool}
 }
 
-func (r *postgresRepo) CreateUser(ctx context.Context, qkID string, email *string, passwordHash string, role string) (*User, error) {
+type CreateUserInput struct {
+	QKID              string
+	Email             *string
+	PasswordHash      string
+	Role              string
+	Status            types.AccountStatus
+	FirstName         *string
+	LastName          *string
+	Phone             *string
+	AvatarURL         *string
+	Gender            *string
+	DateOfBirth       *time.Time
+	Country           *string
+	Interests         []string
+	AvatarStorageKey  *string
+	AvatarDownloadURL *string
+}
+
+type UpdateUserProfileInput struct {
+	Email             *string
+	FirstName         *string
+	LastName          *string
+	Phone             *string
+	AvatarURL         *string
+	Gender            *string
+	DateOfBirth       *time.Time
+	Country           *string
+	Interests         *[]string
+	AvatarStorageKey  *string
+	AvatarDownloadURL *string
+}
+
+func (r *postgresRepo) CreateUser(ctx context.Context, in CreateUserInput) (*User, error) {
+	interests := in.Interests
+	if interests == nil {
+		interests = []string{}
+	}
+
 	const q = `
-		INSERT INTO users (qk_id, email, password_hash, role)
-		VALUES ($1, $2, $3, $4)
-		RETURNING id, qk_id, email, password_hash, role, status, created_at, last_login_at
+		INSERT INTO users (
+			qk_id,
+			email,
+			password_hash,
+			role,
+			status,
+			first_name,
+			last_name,
+			phone,
+			avatar_url,
+			gender,
+			date_of_birth,
+			country,
+			interests,
+			avatar_storage_key,
+			avatar_download_url
+		)
+		VALUES (
+			$1,
+			$2,
+			$3,
+			$4,
+			$5,
+			NULLIF($6, ''),
+			NULLIF($7, ''),
+			NULLIF($8, ''),
+			NULLIF($9, ''),
+			NULLIF($10, ''),
+			$11,
+			NULLIF($12, ''),
+			$13,
+			NULLIF($14, ''),
+			NULLIF($15, '')
+		)
+		RETURNING
+			id,
+			qk_id,
+			email,
+			password_hash,
+			role,
+			status,
+			first_name,
+			last_name,
+			phone,
+			avatar_url,
+			gender,
+			date_of_birth,
+			country,
+			interests,
+			avatar_storage_key,
+			avatar_download_url,
+			organization_id,
+			created_at,
+			last_login_at
 	`
 
 	var u User
-	err := r.pool.QueryRow(ctx, q, qkID, email, passwordHash, role).Scan(
+	err := r.pool.QueryRow(
+		ctx,
+		q,
+		in.QKID,
+		in.Email,
+		in.PasswordHash,
+		in.Role,
+		in.Status,
+		in.FirstName,
+		in.LastName,
+		in.Phone,
+		in.AvatarURL,
+		in.Gender,
+		in.DateOfBirth,
+		in.Country,
+		interests,
+		in.AvatarStorageKey,
+		in.AvatarDownloadURL,
+	).Scan(
 		&u.ID,
 		&u.QKID,
 		&u.Email,
 		&u.PasswordHash,
 		&u.Role,
 		&u.Status,
+		&u.FirstName,
+		&u.LastName,
+		&u.Phone,
+		&u.AvatarURL,
+		&u.Gender,
+		&u.DateOfBirth,
+		&u.Country,
+		&u.Interests,
+		&u.AvatarStorageKey,
+		&u.AvatarDownloadURL,
+		&u.OrganizationID,
 		&u.CreatedAt,
 		&u.LastLoginAt,
 	)
@@ -79,7 +198,26 @@ func (r *postgresRepo) CreateUser(ctx context.Context, qkID string, email *strin
 
 func (r *postgresRepo) GetUserByQKID(ctx context.Context, qkID string) (*User, error) {
 	const q = `
-		SELECT id, qk_id, email, password_hash, role, status, created_at, last_login_at
+		SELECT
+			id,
+			qk_id,
+			email,
+			password_hash,
+			role,
+			status,
+			first_name,
+			last_name,
+			phone,
+			avatar_url,
+			gender,
+			date_of_birth,
+			country,
+			interests,
+			avatar_storage_key,
+			avatar_download_url,
+			organization_id,
+			created_at,
+			last_login_at
 		FROM users
 		WHERE qk_id = $1
 	`
@@ -92,6 +230,17 @@ func (r *postgresRepo) GetUserByQKID(ctx context.Context, qkID string) (*User, e
 		&u.PasswordHash,
 		&u.Role,
 		&u.Status,
+		&u.FirstName,
+		&u.LastName,
+		&u.Phone,
+		&u.AvatarURL,
+		&u.Gender,
+		&u.DateOfBirth,
+		&u.Country,
+		&u.Interests,
+		&u.AvatarStorageKey,
+		&u.AvatarDownloadURL,
+		&u.OrganizationID,
 		&u.CreatedAt,
 		&u.LastLoginAt,
 	)
@@ -106,7 +255,26 @@ func (r *postgresRepo) GetUserByQKID(ctx context.Context, qkID string) (*User, e
 
 func (r *postgresRepo) GetUserByID(ctx context.Context, id string) (*User, error) {
 	const q = `
-		SELECT id, qk_id, email, password_hash, role, status, created_at, last_login_at
+		SELECT
+			id,
+			qk_id,
+			email,
+			password_hash,
+			role,
+			status,
+			first_name,
+			last_name,
+			phone,
+			avatar_url,
+			gender,
+			date_of_birth,
+			country,
+			interests,
+			avatar_storage_key,
+			avatar_download_url,
+			organization_id,
+			created_at,
+			last_login_at
 		FROM users
 		WHERE id = $1
 	`
@@ -119,6 +287,17 @@ func (r *postgresRepo) GetUserByID(ctx context.Context, id string) (*User, error
 		&u.PasswordHash,
 		&u.Role,
 		&u.Status,
+		&u.FirstName,
+		&u.LastName,
+		&u.Phone,
+		&u.AvatarURL,
+		&u.Gender,
+		&u.DateOfBirth,
+		&u.Country,
+		&u.Interests,
+		&u.AvatarStorageKey,
+		&u.AvatarDownloadURL,
+		&u.OrganizationID,
 		&u.CreatedAt,
 		&u.LastLoginAt,
 	)
@@ -129,6 +308,45 @@ func (r *postgresRepo) GetUserByID(ctx context.Context, id string) (*User, error
 		return nil, err
 	}
 	return &u, nil
+}
+
+func (r *postgresRepo) UpdateUserProfile(ctx context.Context, userID string, in UpdateUserProfileInput) (*User, error) {
+	const q = `
+		UPDATE users
+		SET
+			email = COALESCE($2, email),
+			first_name = COALESCE(NULLIF($3, ''), first_name),
+			last_name = COALESCE(NULLIF($4, ''), last_name),
+			phone = COALESCE(NULLIF($5, ''), phone),
+			avatar_url = COALESCE(NULLIF($6, ''), avatar_url),
+			gender = COALESCE(NULLIF($7, ''), gender),
+			date_of_birth = COALESCE($8, date_of_birth),
+			country = COALESCE(NULLIF($9, ''), country),
+			interests = COALESCE($10, interests),
+			avatar_storage_key = COALESCE(NULLIF($11, ''), avatar_storage_key),
+			avatar_download_url = COALESCE(NULLIF($12, ''), avatar_download_url)
+		WHERE id = $1
+	`
+	_, err := r.pool.Exec(
+		ctx,
+		q,
+		userID,
+		in.Email,
+		in.FirstName,
+		in.LastName,
+		in.Phone,
+		in.AvatarURL,
+		in.Gender,
+		in.DateOfBirth,
+		in.Country,
+		in.Interests,
+		in.AvatarStorageKey,
+		in.AvatarDownloadURL,
+	)
+	if err != nil {
+		return nil, err
+	}
+	return r.GetUserByID(ctx, userID)
 }
 
 func (r *postgresRepo) CreateSession(

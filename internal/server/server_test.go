@@ -48,19 +48,16 @@ func newMemoryAuthRepo() *memoryAuthRepo {
 
 func (r *memoryAuthRepo) CreateUser(
 	ctx context.Context,
-	qkID string,
-	email *string,
-	passwordHash string,
-	role string,
+	in auth.CreateUserInput,
 ) (*auth.User, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	if _, ok := r.usersByQKID[qkID]; ok {
+	if _, ok := r.usersByQKID[in.QKID]; ok {
 		return nil, auth.ErrIdentityTaken
 	}
-	if email != nil && *email != "" {
-		if _, ok := r.emailToUser[*email]; ok {
+	if in.Email != nil && *in.Email != "" {
+		if _, ok := r.emailToUser[*in.Email]; ok {
 			return nil, auth.ErrIdentityTaken
 		}
 	}
@@ -71,21 +68,73 @@ func (r *memoryAuthRepo) CreateUser(
 	now := time.Now()
 	u := &auth.User{
 		ID:           id,
-		QKID:         qkID,
-		Email:        email,
-		Role:         types.UserRole(role),
-		Status:       types.AccountStatusActive,
+		QKID:         in.QKID,
+		Email:        in.Email,
+		Role:         types.UserRole(in.Role),
+		Status:       in.Status,
+		FirstName:    in.FirstName,
+		LastName:     in.LastName,
+		Phone:        in.Phone,
+		AvatarURL:    in.AvatarURL,
+		Gender:       in.Gender,
+		DateOfBirth:  in.DateOfBirth,
+		Country:      in.Country,
+		Interests:    in.Interests,
 		CreatedAt:    now,
 		LastLoginAt:  nil,
-		PasswordHash: passwordHash,
+		PasswordHash: in.PasswordHash,
 	}
 
 	r.usersByID[id] = u
-	r.usersByQKID[qkID] = u
-	if email != nil && *email != "" {
-		r.emailToUser[*email] = u
+	r.usersByQKID[in.QKID] = u
+	if in.Email != nil && *in.Email != "" {
+		r.emailToUser[*in.Email] = u
 	}
 
+	return u, nil
+}
+
+func (r *memoryAuthRepo) UpdateUserProfile(ctx context.Context, userID string, in auth.UpdateUserProfileInput) (*auth.User, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	u, ok := r.usersByID[userID]
+	if !ok {
+		return nil, auth.ErrUserNotFound
+	}
+	if in.Email != nil {
+		u.Email = in.Email
+	}
+	if in.FirstName != nil {
+		u.FirstName = in.FirstName
+	}
+	if in.LastName != nil {
+		u.LastName = in.LastName
+	}
+	if in.Phone != nil {
+		u.Phone = in.Phone
+	}
+	if in.AvatarURL != nil {
+		u.AvatarURL = in.AvatarURL
+	}
+	if in.Gender != nil {
+		u.Gender = in.Gender
+	}
+	if in.DateOfBirth != nil {
+		u.DateOfBirth = in.DateOfBirth
+	}
+	if in.Country != nil {
+		u.Country = in.Country
+	}
+	if in.Interests != nil {
+		u.Interests = *in.Interests
+	}
+	if in.AvatarStorageKey != nil {
+		u.AvatarStorageKey = in.AvatarStorageKey
+	}
+	if in.AvatarDownloadURL != nil {
+		u.AvatarDownloadURL = in.AvatarDownloadURL
+	}
 	return u, nil
 }
 
@@ -561,7 +610,13 @@ func (r *memoryOrgRepo) SignupOrganization(ctx context.Context, in org.SignupOrg
 		return nil, err
 	}
 
-	user, err := r.authRepo.CreateUser(ctx, ownerQKID, nil, string(hash), "user")
+	user, err := r.authRepo.CreateUser(ctx, auth.CreateUserInput{
+		QKID:         ownerQKID,
+		Email:        nil,
+		PasswordHash: string(hash),
+		Role:         "user",
+		Status:       types.AccountStatusActive,
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -771,7 +826,13 @@ func TestAPIEndpoints(t *testing.T) {
 		if err != nil {
 			t.Fatalf("hash password: %v", err)
 		}
-		if _, err := repo.CreateUser(context.Background(), "superadmin.qk", nil, string(adminHash), "admin"); err != nil {
+		if _, err := repo.CreateUser(context.Background(), auth.CreateUserInput{
+			QKID:         "superadmin.qk",
+			Email:        nil,
+			PasswordHash: string(adminHash),
+			Role:         "admin",
+			Status:       types.AccountStatusActive,
+		}); err != nil {
 			t.Fatalf("create admin user: %v", err)
 		}
 
@@ -846,7 +907,13 @@ func TestAPIEndpoints(t *testing.T) {
 		if err != nil {
 			t.Fatalf("hash password: %v", err)
 		}
-		adminUser, err := repo.CreateUser(context.Background(), "superadmin.qk", nil, string(adminHash), "admin")
+		adminUser, err := repo.CreateUser(context.Background(), auth.CreateUserInput{
+			QKID:         "superadmin.qk",
+			Email:        nil,
+			PasswordHash: string(adminHash),
+			Role:         "admin",
+			Status:       types.AccountStatusActive,
+		})
 		if err != nil {
 			if err == auth.ErrIdentityTaken {
 				adminUser, err = repo.GetUserByQKID(context.Background(), "superadmin.qk")
@@ -995,7 +1062,13 @@ func TestAPIEndpoints(t *testing.T) {
 		if err != nil {
 			t.Fatalf("hash password: %v", err)
 		}
-		_, err = repo.CreateUser(context.Background(), "superadmin.qk", nil, string(adminHash), "admin")
+		_, err = repo.CreateUser(context.Background(), auth.CreateUserInput{
+			QKID:         "superadmin.qk",
+			Email:        nil,
+			PasswordHash: string(adminHash),
+			Role:         "admin",
+			Status:       types.AccountStatusActive,
+		})
 		if err != nil && err != auth.ErrIdentityTaken {
 			t.Fatalf("create admin user: %v", err)
 		}

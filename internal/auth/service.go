@@ -11,14 +11,25 @@ import (
 )
 
 type User struct {
-	ID           string              `json:"id"`
-	QKID         string              `json:"qkId"`
-	Email        *string             `json:"email,omitempty"`
-	Role         types.UserRole      `json:"role"`
-	Status       types.AccountStatus `json:"status"`
-	CreatedAt    time.Time           `json:"createdAt"`
-	LastLoginAt  *time.Time          `json:"lastLoginAt,omitempty"`
-	PasswordHash string              `json:"-"`
+	ID                string              `json:"id"`
+	QKID              string              `json:"qkId"`
+	Email             *string             `json:"email,omitempty"`
+	Role              types.UserRole      `json:"role"`
+	Status            types.AccountStatus `json:"status"`
+	FirstName         *string             `json:"firstName,omitempty"`
+	LastName          *string             `json:"lastName,omitempty"`
+	Phone             *string             `json:"phone,omitempty"`
+	AvatarURL         *string             `json:"avatarUrl,omitempty"`
+	Gender            *string             `json:"gender,omitempty"`
+	DateOfBirth       *time.Time          `json:"dateOfBirth,omitempty"`
+	Country           *string             `json:"country,omitempty"`
+	Interests         []string            `json:"interests"`
+	AvatarStorageKey  *string             `json:"avatarStorageKey,omitempty"`
+	AvatarDownloadURL *string             `json:"avatarDownloadUrl,omitempty"`
+	OrganizationID    *string             `json:"organizationId,omitempty"`
+	CreatedAt         time.Time           `json:"createdAt"`
+	LastLoginAt       *time.Time          `json:"lastLoginAt,omitempty"`
+	PasswordHash      string              `json:"-"`
 }
 
 type Service struct {
@@ -33,18 +44,50 @@ func NewService(repo Repository, jwtSecret string) *Service {
 	}
 }
 
-func (s *Service) Signup(ctx context.Context, qkID string, email *string, password string) (*User, string, error) {
-	normalizedQKID, err := types.NormalizeQKID(qkID)
+type SignupInput struct {
+	QKID              string
+	Email             *string
+	Password          string
+	FirstName         *string
+	LastName          *string
+	Phone             *string
+	AvatarURL         *string
+	Gender            *string
+	DateOfBirth       *time.Time
+	Country           *string
+	Interests         []string
+	AvatarStorageKey  *string
+	AvatarDownloadURL *string
+}
+
+func (s *Service) Signup(ctx context.Context, in SignupInput) (*User, string, error) {
+	normalizedQKID, err := types.NormalizeQKID(in.QKID)
 	if err != nil {
 		return nil, "", err
 	}
 
-	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	hash, err := bcrypt.GenerateFromPassword([]byte(in.Password), bcrypt.DefaultCost)
 	if err != nil {
 		return nil, "", err
 	}
 
-	u, err := s.repo.CreateUser(ctx, normalizedQKID, email, string(hash), string(types.UserRoleUser))
+	u, err := s.repo.CreateUser(ctx, CreateUserInput{
+		QKID:              normalizedQKID,
+		Email:             in.Email,
+		PasswordHash:      string(hash),
+		Role:              string(types.UserRoleUser),
+		Status:            types.AccountStatusActive,
+		FirstName:         in.FirstName,
+		LastName:          in.LastName,
+		Phone:             in.Phone,
+		AvatarURL:         in.AvatarURL,
+		Gender:            in.Gender,
+		DateOfBirth:       in.DateOfBirth,
+		Country:           in.Country,
+		Interests:         in.Interests,
+		AvatarStorageKey:  in.AvatarStorageKey,
+		AvatarDownloadURL: in.AvatarDownloadURL,
+	})
 	if err != nil {
 		return nil, "", err
 	}

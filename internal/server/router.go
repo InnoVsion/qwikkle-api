@@ -105,7 +105,49 @@ func NewRouter(
 			return
 		}
 
-		user, token, err := authService.Signup(c.Request.Context(), req.QKID, req.Email, req.Password)
+		var dob *time.Time
+		if req.DateOfBirth != nil && *req.DateOfBirth != "" {
+			parsed, err := parseDateOfBirth(*req.DateOfBirth)
+			if err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "invalid dateOfBirth"})
+				return
+			}
+			dob = &parsed
+		}
+
+		var avatarStorageKey *string
+		var avatarDownloadURL *string
+		var avatarURL *string
+		if req.AvatarUploadID != nil && *req.AvatarUploadID != "" {
+			up, err := uploadsRepo.Get(c.Request.Context(), *req.AvatarUploadID)
+			if err != nil || up.Status != uploads.UploadStatusCompleted {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "invalid avatarUploadId"})
+				return
+			}
+			avatarStorageKey = &up.StorageKey
+			avatarDownloadURL = up.DownloadURL
+			if up.DownloadURL != nil {
+				avatarURL = up.DownloadURL
+			} else {
+				avatarURL = &up.StorageKey
+			}
+		}
+
+		user, token, err := authService.Signup(c.Request.Context(), auth.SignupInput{
+			QKID:              req.QKID,
+			Email:             req.Email,
+			Password:          req.Password,
+			FirstName:         req.FirstName,
+			LastName:          req.LastName,
+			Phone:             req.Phone,
+			AvatarURL:         avatarURL,
+			Gender:            req.Gender,
+			DateOfBirth:       dob,
+			Country:           req.Country,
+			Interests:         req.Interests,
+			AvatarStorageKey:  avatarStorageKey,
+			AvatarDownloadURL: avatarDownloadURL,
+		})
 		if err != nil {
 			switch err {
 			case auth.ErrIdentityTaken:
@@ -144,6 +186,88 @@ func NewRouter(
 			"user":  user,
 			"token": token,
 		})
+	})
+
+	me := r.Group("/me")
+	me.Use(requireUserToken(cfg, repo))
+	me.GET("", func(c *gin.Context) {
+		u, ok := getUser(c)
+		if !ok {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"user": u})
+	})
+	me.PUT("/profile", func(c *gin.Context) {
+		u, ok := getUser(c)
+		if !ok {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+			return
+		}
+
+		var req struct {
+			Email          *string   `json:"email" binding:"omitempty,email"`
+			FirstName      *string   `json:"firstName"`
+			LastName       *string   `json:"lastName"`
+			Phone          *string   `json:"phone"`
+			Gender         *string   `json:"gender"`
+			DateOfBirth    *string   `json:"dateOfBirth"`
+			Country        *string   `json:"country"`
+			Interests      *[]string `json:"interests"`
+			AvatarUploadID *string   `json:"avatarUploadId"`
+		}
+		if err := c.ShouldBindJSON(&req); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+
+		var dob *time.Time
+		if req.DateOfBirth != nil && *req.DateOfBirth != "" {
+			parsed, err := parseDateOfBirth(*req.DateOfBirth)
+			if err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "invalid dateOfBirth"})
+				return
+			}
+			dob = &parsed
+		}
+
+		var avatarStorageKey *string
+		var avatarDownloadURL *string
+		var avatarURL *string
+		if req.AvatarUploadID != nil && *req.AvatarUploadID != "" {
+			up, err := uploadsRepo.Get(c.Request.Context(), *req.AvatarUploadID)
+			if err != nil || up.Status != uploads.UploadStatusCompleted {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "invalid avatarUploadId"})
+				return
+			}
+			avatarStorageKey = &up.StorageKey
+			avatarDownloadURL = up.DownloadURL
+			if up.DownloadURL != nil {
+				avatarURL = up.DownloadURL
+			} else {
+				avatarURL = &up.StorageKey
+			}
+		}
+
+		updated, err := repo.UpdateUserProfile(c.Request.Context(), u.ID, auth.UpdateUserProfileInput{
+			Email:             req.Email,
+			FirstName:         req.FirstName,
+			LastName:          req.LastName,
+			Phone:             req.Phone,
+			AvatarURL:         avatarURL,
+			Gender:            req.Gender,
+			DateOfBirth:       dob,
+			Country:           req.Country,
+			Interests:         req.Interests,
+			AvatarStorageKey:  avatarStorageKey,
+			AvatarDownloadURL: avatarDownloadURL,
+		})
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "could not update profile"})
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{"user": updated})
 	})
 
 	adminAuth := r.Group("/admin/auth")

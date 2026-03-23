@@ -112,9 +112,10 @@ func (r *PostgresRepository) SignupOrganization(ctx context.Context, in SignupOr
 			mime_type,
 			storage_key,
 			download_url,
+			registrant_full_legal_name,
 			uploaded_at
 		)
-		VALUES ($1, $2, $3::document_type, 'pending'::document_status, $4, $5, $6, $7, $8, NOW())
+		VALUES ($1, $2, $3::document_type, 'pending'::document_status, $4, $5, $6, $7, $8, NULL, NOW())
 	`, orgID, userID, string(types.DocumentTypeRegistrationCertificate), businessUpload.FileName, businessUpload.FileSize, businessUpload.MimeType, businessUpload.StorageKey, businessDownloadURL)
 	if err != nil {
 		return nil, err
@@ -137,10 +138,11 @@ func (r *PostgresRepository) SignupOrganization(ctx context.Context, in SignupOr
 				mime_type,
 				storage_key,
 				download_url,
+				registrant_full_legal_name,
 				uploaded_at
 			)
-			VALUES ($1, $2, $3::document_type, 'pending'::document_status, $4, $5, $6, $7, $8, NOW())
-		`, orgID, userID, string(types.DocumentTypeIDDocument), u.FileName, u.FileSize, u.MimeType, u.StorageKey, downloadURL)
+			VALUES ($1, $2, $3::document_type, 'pending'::document_status, $4, $5, $6, $7, $8, $9, NOW())
+		`, orgID, userID, string(types.DocumentTypeIDDocument), u.FileName, u.FileSize, u.MimeType, u.StorageKey, downloadURL, reg.FullLegalName)
 		if err != nil {
 			return nil, err
 		}
