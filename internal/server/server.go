@@ -173,8 +173,20 @@ func parseCSV(value string) []string {
 	return out
 }
 
+func requestIsHTTPS(r *http.Request) bool {
+	if r.TLS != nil {
+		return true
+	}
+	xfp := strings.TrimSpace(r.Header.Get("X-Forwarded-Proto"))
+	if strings.EqualFold(xfp, "https") {
+		return true
+	}
+	xfs := strings.TrimSpace(r.Header.Get("X-Forwarded-Ssl"))
+	return strings.EqualFold(xfs, "on")
+}
+
 func setAuthCookies(c *gin.Context, cfg config.Config, accessToken string, refreshToken string, accessTTL time.Duration, refreshTTL time.Duration) {
-	secure := cfg.AppEnv == "production"
+	secure := cfg.AppEnv == "production" || requestIsHTTPS(c.Request)
 
 	if secure {
 		c.SetSameSite(http.SameSiteNoneMode)
@@ -191,7 +203,7 @@ func setAuthCookies(c *gin.Context, cfg config.Config, accessToken string, refre
 }
 
 func clearAuthCookies(c *gin.Context, cfg config.Config) {
-	secure := cfg.AppEnv == "production"
+	secure := cfg.AppEnv == "production" || requestIsHTTPS(c.Request)
 	if secure {
 		c.SetSameSite(http.SameSiteNoneMode)
 	} else {
