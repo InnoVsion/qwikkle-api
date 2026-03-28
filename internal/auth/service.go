@@ -2,6 +2,7 @@ package auth
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -115,9 +116,22 @@ func (s *Service) Login(ctx context.Context, qkID, password string) (*User, stri
 	}
 
 	if err := bcrypt.CompareHashAndPassword([]byte(u.PasswordHash), []byte(password)); err != nil {
+		hash := strings.TrimSpace(u.PasswordHash)
+		if hash != u.PasswordHash {
+			if err := bcrypt.CompareHashAndPassword([]byte(hash), []byte(password)); err == nil {
+				goto ok
+			}
+		}
+		pw := strings.TrimSpace(password)
+		if pw != password {
+			if err := bcrypt.CompareHashAndPassword([]byte(hash), []byte(pw)); err == nil {
+				goto ok
+			}
+		}
 		return nil, "", ErrInvalidCredentials
 	}
 
+ok:
 	token, err := s.generateToken(u, 24*time.Hour)
 	if err != nil {
 		return nil, "", err

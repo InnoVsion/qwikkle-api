@@ -286,16 +286,19 @@ func NewRouter(
 
 		user, _, err := authService.Login(c.Request.Context(), normalizedQKID, req.Password)
 		if err != nil {
+			log.Warn("admin login rejected", zap.String("qkId", normalizedQKID), zap.String("reason", "invalid_credentials"))
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid qkId or password"})
 			return
 		}
 
 		if user.Status != types.AccountStatusActive {
+			log.Warn("admin login rejected", zap.String("qkId", normalizedQKID), zap.String("reason", "inactive_status"), zap.String("status", string(user.Status)))
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid qkId or password"})
 			return
 		}
 
 		if user.Role != types.UserRoleAdmin && user.Role != types.UserRoleEditor {
+			log.Warn("admin login rejected", zap.String("qkId", normalizedQKID), zap.String("reason", "insufficient_role"), zap.String("role", string(user.Role)))
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid qkId or password"})
 			return
 		}
