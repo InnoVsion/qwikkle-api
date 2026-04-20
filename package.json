@@ -1,0 +1,36 @@
+{
+  "name": "qwikkle-api",
+  "version": "1.0.0",
+  "description": "Backend API service for Qwikkle built with ElysiaJS",
+  "main": "src/index.ts",
+  "scripts": {
+    "dev": "bun --watch src/index.ts",
+    "start": "bun src/index.ts",
+    "build": "bun build src/index.ts --outdir=dist --target=bun",
+    "test": "bun test",
+    "lint": "bunx @biomejs/biome check src/",
+    "lint:fix": "bunx @biomejs/biome check --apply src/"
+  },
+  "dependencies": {
+    "elysia": "^1.1.0",
+    "@elysiajs/cors": "^1.1.0",
+    "@elysiajs/swagger": "^1.1.0",
+    "postgres": "^3.4.4",
+    "@aws-sdk/client-s3": "^3.600.0",
+    "@aws-sdk/s3-request-presigner": "^3.600.0",
+    "bcrypt": "^5.1.1",
+    "nanoid": "^5.0.7",
+    "zod": "^3.23.8",
+    "jose": "^5.9.6",
+    "dotenv": "^16.4.5"
+  },
+  "devDependencies": {
+    "@types/bcrypt": "^5.0.2",
+    "@types/node": "^20.14.9",
+    "bun-types": "latest",
+    "@biomejs/biome": "^1.8.3"
+  },
+  "engines": {
+    "bun": ">=1.0.0"
+  }
+}

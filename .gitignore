@@ -10,3 +10,4 @@ qwikkle-api
 .vscode/
 .idea/
 
+/node_modules
