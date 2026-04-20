@@ -1,11 +1,11 @@
 services:
   - type: web
     name: qwikkle-api
-    env: go
+    env: node
     plan: free
     region: oregon
-    buildCommand: go build -tags netgo -ldflags "-s -w" -o app ./cmd/api
-    startCommand: ./app
+    buildCommand: bun install
+    startCommand: bun start
     autoDeploy: true
     envVars:
       - key: PORT
